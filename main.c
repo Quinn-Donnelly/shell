@@ -67,19 +67,22 @@ char **split_line(char *line)
 int cd(char **args);
 int help(char **args);
 int shell_exit(char **args);
+int ls(char **args);
 
 // List of commands
 char *command_str[] = {
   "cd",
   "help",
-  "exit"
+  "exit",
+  "ls"
 };
 
 // List of the functions that implement the commands
 int (*command_func[]) (char **) = {
   &cd,
   &help,
-  &shell_exit
+  &shell_exit,
+  &ls
 };
 
 // Return the number of commands supported
@@ -87,6 +90,27 @@ int num_commands() {
   return sizeof(command_str) / sizeof(char *);
 }
 
+
+// Lists the files in the curent directory
+int ls(char **args)
+{
+  int out;
+
+  if(args[1] != NULL && !strcmp(args[1], ">"))
+  {
+    if(args[2] == NULL)
+    {
+      fprintf(stderr, "shell: expected argument after ls > \n");
+    }
+    else
+    {
+      out = open(args[2], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+      dup2(out, 1);
+      close(out);
+    }
+  }
+  execv("bin/ls", args);
+}
 
 // Changes the current directory
 int cd(char **args)
@@ -158,11 +182,20 @@ void loop(void)
   char **args;
   int status;
 
+  int saved_in = dup2(0);
+  int saved_out = dup2(1);
+
   do {
     printf("> ");
     line = read_line();
     args = split_line(line);
     status = execute(args);
+
+    // Restore standard in and out in case they were changed
+    dup2(saved_in, 0);
+    close(saved_in);
+    dup2(saved_out, 1);
+    close(saved_out);
 
     free(line);
     free(args);
@@ -187,6 +220,8 @@ int execute(char **args)
     }
   }
 
+  // This will launch any commands not found in the 
+  // shell and see if they execute in the terminal
   return launch(args);
 }
 
